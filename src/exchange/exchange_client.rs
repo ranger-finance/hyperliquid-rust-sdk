@@ -71,7 +71,7 @@ pub enum Actions {
 }
 
 impl Actions {
-    fn hash(&self, timestamp: u64, vault_address: Option<H160>) -> Result<H256> {
+    pub fn hash(&self, timestamp: u64, vault_address: Option<H160>) -> Result<H256> {
         let mut bytes =
             rmp_serde::to_vec_named(self).map_err(|e| Error::RmpParse(e.to_string()))?;
         bytes.extend(timestamp.to_be_bytes());
