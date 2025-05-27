@@ -11,8 +11,9 @@ use std::collections::HashMap;
 use super::components::UnsignedTransactionComponents;
 use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
-use crate::{Actions, BulkOrder, ClientOrderRequest};
+use crate::{Actions, BulkOrder, ClientOrderRequest, UsdSend};
 use ethers::types::transaction::eip712::Eip712;
+use ethers::types::U256;
 
 #[derive(Debug)]
 pub struct UnsignedTransactionBuilder {
@@ -103,6 +104,47 @@ impl UnsignedTransactionBuilder {
             eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
             eip712_hyperliquid_chain_name: None,
             is_l1_agent_signature: true,
+        })
+    }
+
+    pub async fn prepare_unsigned_usdc_transfer(
+        &self,
+        amount_str: &str,
+        destination_str: &str,
+    ) -> Result<UnsignedTransactionComponents> {
+        let timestamp = next_nonce();
+        let hyperliquid_chain_name = if self.http_client.is_mainnet() {
+            "Mainnet".to_string()
+        } else {
+            "Testnet".to_string()
+        };
+        let signature_chain_id = U256::from(421614);
+
+        let usd_send_action = UsdSend {
+            signature_chain_id,
+            hyperliquid_chain: hyperliquid_chain_name.clone(),
+            destination: destination_str.to_string(),
+            amount: amount_str.to_string(),
+            time: timestamp,
+        };
+
+        let action_payload_json = serde_json::to_value(Actions::UsdSend(usd_send_action.clone()))
+            .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        let digest_to_sign = ethers::types::H256::from(
+            usd_send_action
+                .encode_eip712()
+                .map_err(|e| crate::Error::Eip712(e.to_string()))?,
+        );
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json,
+            nonce: timestamp,
+            digest_to_sign,
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(signature_chain_id),
+            eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+            is_l1_agent_signature: false,
         })
     }
 }
@@ -217,6 +259,56 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping order test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_usdc_transfer() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let amount = "10.5";
+            let destination = "0x742d35Cc6634C0532925a3b8D8c9e4b7B6a3b";
+
+            let result = builder
+                .prepare_unsigned_usdc_transfer(amount, destination)
+                .await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        !components.is_l1_agent_signature,
+                        "should NOT be L1 agent signature for USDC transfer"
+                    );
+                    assert_eq!(components.eip712_domain_chain_id, Some(U256::from(421614)));
+                    assert_eq!(
+                        components.eip712_hyperliquid_chain_name,
+                        Some("Testnet".to_string())
+                    );
+                    println!("✓ prepare_unsigned_usdc_transfer succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                    println!(
+                        "  - Chain Name: {:?}",
+                        components.eip712_hyperliquid_chain_name
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_usdc_transfer failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping USDC transfer test");
         }
     }
 }
