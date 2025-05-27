@@ -1,3 +1,52 @@
 /target
 .idea/
 Cargo.lock
+cursor_plan/
+
+# Rust build artifacts
+/target/
+**/target/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Rust-specific
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation build
+/doc/
+/docs/book/
+
+# Backup files
+*.bak
+*.backup
+
+# Test artifacts
+/tests/tmp/
