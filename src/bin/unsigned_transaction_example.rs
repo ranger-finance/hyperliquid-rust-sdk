@@ -1,5 +1,5 @@
-use hyperliquid_rust_sdk::prelude::Result;
-use hyperliquid_rust_sdk::{
+use hl_ranger::prelude::Result;
+use hl_ranger::{
     BaseUrl, ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest,
     UnsignedTransactionBuilder, UnsignedTransactionComponents,
 };

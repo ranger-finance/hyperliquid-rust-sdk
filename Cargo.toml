@@ -1,9 +1,9 @@
 [package]
-name = "hyperliquid_rust_sdk"
-version = "0.6.0"
+name = "hl_ranger"
+version = "0.6.0-ranger.1"
 edition = "2021"
 license = "MIT"
-description = "Rust SDK for Hyperliquid"
+description = "Fork of Hyperliquid Rust SDK with unsigned transaction support for external signing"
 homepage = "https://hyperliquid.xyz/"
 readme = "README.md"
 documentation = "https://github.com/hyperliquid-dex/hyperliquid-rust-sdk"

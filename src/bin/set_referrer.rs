@@ -1,6 +1,6 @@
 use ethers::signers::LocalWallet;
 
-use hyperliquid_rust_sdk::{BaseUrl, ExchangeClient};
+use hl_ranger::{BaseUrl, ExchangeClient};
 use log::info;
 
 #[tokio::main]
