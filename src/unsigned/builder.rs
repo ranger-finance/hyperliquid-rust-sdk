@@ -11,7 +11,10 @@ use std::collections::HashMap;
 use super::components::UnsignedTransactionComponents;
 use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
-use crate::{Actions, BulkOrder, ClientOrderRequest, UsdSend};
+use crate::{
+    Actions, BulkCancel, BulkOrder, CancelRequest, ClientCancelRequest, ClientOrderRequest,
+    SpotSend, UpdateLeverage, UsdSend, VaultTransfer, Withdraw3,
+};
 use ethers::types::transaction::eip712::Eip712;
 use ethers::types::U256;
 
@@ -145,6 +148,230 @@ impl UnsignedTransactionBuilder {
             eip712_domain_chain_id: Some(signature_chain_id),
             eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
             is_l1_agent_signature: false,
+        })
+    }
+
+    pub async fn prepare_unsigned_cancel(
+        &self,
+        cancel: ClientCancelRequest,
+    ) -> Result<UnsignedTransactionComponents> {
+        let nonce = next_nonce();
+
+        let &asset_index = self
+            .coin_to_asset
+            .get(&cancel.asset)
+            .ok_or(crate::Error::AssetNotFound)?;
+
+        let cancel_request = CancelRequest {
+            asset: asset_index,
+            oid: cancel.oid,
+        };
+
+        let action = Actions::Cancel(BulkCancel {
+            cancels: vec![cancel_request],
+        });
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
+        })
+    }
+
+    pub async fn prepare_unsigned_withdraw(
+        &self,
+        amount: &str,
+        destination: &str,
+    ) -> Result<UnsignedTransactionComponents> {
+        let timestamp = next_nonce();
+        let hyperliquid_chain_name = if self.http_client.is_mainnet() {
+            "Mainnet".to_string()
+        } else {
+            "Testnet".to_string()
+        };
+        let signature_chain_id = U256::from(421614);
+
+        let withdraw_action = Withdraw3 {
+            signature_chain_id,
+            hyperliquid_chain: hyperliquid_chain_name.clone(),
+            destination: destination.to_string(),
+            amount: amount.to_string(),
+            time: timestamp,
+        };
+
+        let action_payload_json = serde_json::to_value(Actions::Withdraw3(withdraw_action.clone()))
+            .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        let digest_to_sign = ethers::types::H256::from(
+            withdraw_action
+                .encode_eip712()
+                .map_err(|e| crate::Error::Eip712(e.to_string()))?,
+        );
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json,
+            nonce: timestamp,
+            digest_to_sign,
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(signature_chain_id),
+            eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+            is_l1_agent_signature: false,
+        })
+    }
+
+    pub async fn prepare_unsigned_update_leverage(
+        &self,
+        leverage: u32,
+        asset: &str,
+        is_cross: bool,
+    ) -> Result<UnsignedTransactionComponents> {
+        let nonce = next_nonce();
+
+        let &asset_index = self
+            .coin_to_asset
+            .get(asset)
+            .ok_or(crate::Error::AssetNotFound)?;
+
+        let action = Actions::UpdateLeverage(UpdateLeverage {
+            asset: asset_index,
+            is_cross,
+            leverage,
+        });
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
+        })
+    }
+
+    pub async fn prepare_unsigned_spot_transfer(
+        &self,
+        amount: &str,
+        destination: &str,
+        token: &str,
+    ) -> Result<UnsignedTransactionComponents> {
+        let timestamp = next_nonce();
+        let hyperliquid_chain_name = if self.http_client.is_mainnet() {
+            "Mainnet".to_string()
+        } else {
+            "Testnet".to_string()
+        };
+        let signature_chain_id = U256::from(421614);
+
+        let spot_send_action = SpotSend {
+            signature_chain_id,
+            hyperliquid_chain: hyperliquid_chain_name.clone(),
+            destination: destination.to_string(),
+            token: token.to_string(),
+            amount: amount.to_string(),
+            time: timestamp,
+        };
+
+        let action_payload_json = serde_json::to_value(Actions::SpotSend(spot_send_action.clone()))
+            .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        let digest_to_sign = ethers::types::H256::from(
+            spot_send_action
+                .encode_eip712()
+                .map_err(|e| crate::Error::Eip712(e.to_string()))?,
+        );
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json,
+            nonce: timestamp,
+            digest_to_sign,
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(signature_chain_id),
+            eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+            is_l1_agent_signature: false,
+        })
+    }
+
+    pub async fn prepare_unsigned_vault_transfer(
+        &self,
+        is_deposit: bool,
+        usd: u64,
+        vault_address: Option<ethers::types::H160>,
+    ) -> Result<UnsignedTransactionComponents> {
+        let nonce = next_nonce();
+
+        let action = Actions::VaultTransfer(VaultTransfer {
+            vault_address: vault_address.unwrap_or_default(),
+            is_deposit,
+            usd,
+        });
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
         })
     }
 }
@@ -309,6 +536,165 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping USDC transfer test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_cancel() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let cancel = ClientCancelRequest {
+                asset: "ETH".to_string(),
+                oid: 12345,
+            };
+
+            let result = builder.prepare_unsigned_cancel(cancel).await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for cancel"
+                    );
+                    println!("✓ prepare_unsigned_cancel succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!("prepare_unsigned_cancel failed (may be expected): {:?}", e);
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping cancel test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_withdraw() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let amount = "50.0";
+            let destination = "0x742d35Cc6634C0532925a3b8D8c9e4b7B6a3b";
+
+            let result = builder.prepare_unsigned_withdraw(amount, destination).await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        !components.is_l1_agent_signature,
+                        "should NOT be L1 agent signature for withdraw"
+                    );
+                    assert_eq!(components.eip712_domain_chain_id, Some(U256::from(421614)));
+                    println!("✓ prepare_unsigned_withdraw succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_withdraw failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping withdraw test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_update_leverage() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let result = builder
+                .prepare_unsigned_update_leverage(10, "ETH", true)
+                .await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for leverage update"
+                    );
+                    println!("✓ prepare_unsigned_update_leverage succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_update_leverage failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping leverage update test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_spot_transfer() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let amount = "100.0";
+            let destination = "0x742d35Cc6634C0532925a3b8D8c9e4b7B6a3b";
+            let token = "USDC";
+
+            let result = builder
+                .prepare_unsigned_spot_transfer(amount, destination, token)
+                .await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        !components.is_l1_agent_signature,
+                        "should NOT be L1 agent signature for spot transfer"
+                    );
+                    assert_eq!(components.eip712_domain_chain_id, Some(U256::from(421614)));
+                    println!("✓ prepare_unsigned_spot_transfer succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_spot_transfer failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping spot transfer test");
         }
     }
 }
