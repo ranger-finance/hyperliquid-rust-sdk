@@ -6,7 +6,7 @@ mod helpers;
 mod info;
 mod market_maker;
 mod meta;
-mod prelude;
+pub mod prelude;
 mod proxy_digest;
 mod req;
 mod signature;
