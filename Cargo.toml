@@ -6,8 +6,10 @@ license = "MIT"
 description = "Fork of Hyperliquid Rust SDK with unsigned transaction support for external signing"
 homepage = "https://hyperliquid.xyz/"
 readme = "README.md"
-documentation = "https://github.com/hyperliquid-dex/hyperliquid-rust-sdk"
-repository = "https://github.com/hyperliquid-dex/hyperliquid-rust-sdk"
+documentation = "https://docs.rs/hl_ranger"
+repository = "https://github.com/hl-ranger/hyperliquid-rust-sdk"
+keywords = ["hyperliquid", "trading", "defi", "cryptocurrency", "blockchain"]
+categories = ["api-bindings", "finance"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
