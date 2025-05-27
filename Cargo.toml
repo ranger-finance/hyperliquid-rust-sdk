@@ -7,7 +7,7 @@ description = "Fork of Hyperliquid Rust SDK with unsigned transaction support fo
 homepage = "https://hyperliquid.xyz/"
 readme = "README.md"
 documentation = "https://docs.rs/hl_ranger"
-repository = "https://github.com/hl-ranger/hyperliquid-rust-sdk"
+repository = "https://github.com/ranger-finance/hyperliquid-rust-sdk"
 keywords = ["hyperliquid", "trading", "defi", "cryptocurrency", "blockchain"]
 categories = ["api-bindings", "finance"]
 
