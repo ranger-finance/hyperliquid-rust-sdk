@@ -13,7 +13,7 @@ use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
 use crate::{
     Actions, BulkCancel, BulkOrder, CancelRequest, ClientCancelRequest, ClientOrderRequest,
-    SpotSend, UpdateLeverage, UsdSend, VaultTransfer, Withdraw3,
+    SpotSend, UpdateLeverage, UsdSend, VaultTransfer, Withdraw3, BulkModify, ModifyRequest, ClientModifyRequest,
 };
 use ethers::types::transaction::eip712::Eip712;
 use ethers::types::U256;
@@ -374,6 +374,110 @@ impl UnsignedTransactionBuilder {
             is_l1_agent_signature: true,
         })
     }
+
+    pub async fn prepare_unsigned_modify_order(
+        &self,
+        modify_request_client: ClientModifyRequest,
+    ) -> Result<UnsignedTransactionComponents> {
+        // Convert the ClientOrderRequest to OrderRequest using the coin_to_asset mapping
+        let order_request = modify_request_client.order.convert(&self.coin_to_asset)?;
+
+        // Create the ModifyRequest
+        let transformed_modify = ModifyRequest {
+            oid: modify_request_client.oid,
+            order: order_request,
+        };
+
+        // Create the action
+        let action = Actions::BatchModify(BulkModify {
+            modifies: vec![transformed_modify],
+        });
+
+        // Generate nonce
+        let nonce = next_nonce();
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
+        })
+    }
+
+    pub async fn prepare_unsigned_bulk_cancel(
+        &self,
+        cancels_client: Vec<ClientCancelRequest>,
+    ) -> Result<UnsignedTransactionComponents> {
+        // Transform Vec<ClientCancelRequest> to Vec<CancelRequest>
+        let mut transformed_cancels = Vec::new();
+        for cancel_client in cancels_client {
+            let &asset_index = self
+                .coin_to_asset
+                .get(&cancel_client.asset)
+                .ok_or(crate::Error::AssetNotFound)?;
+            transformed_cancels.push(CancelRequest {
+                asset: asset_index,
+                oid: cancel_client.oid,
+            });
+        }
+
+        // Create the action
+        let action = Actions::Cancel(BulkCancel {
+            cancels: transformed_cancels,
+        });
+
+        // Generate nonce
+        let nonce = next_nonce();
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -695,6 +799,114 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping spot transfer test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_modify_order() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let new_order = ClientOrderRequest {
+                asset: "ETH".to_string(),
+                is_buy: false,
+                reduce_only: false,
+                limit_px: 1900.0,
+                sz: 0.2,
+                cloid: Some(Uuid::new_v4()),
+                order_type: ClientOrder::Limit(ClientLimit {
+                    tif: "Gtc".to_string(),
+                }),
+            };
+
+            let modify_request = ClientModifyRequest {
+                oid: 12345,
+                order: new_order,
+            };
+
+            let result = builder.prepare_unsigned_modify_order(modify_request).await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for modify"
+                    );
+                    assert_eq!(
+                        components.eip712_domain_chain_id,
+                        Some(ethers::types::U256::from(1337))
+                    );
+                    println!("✓ prepare_unsigned_modify_order succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_modify_order failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping modify order test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_bulk_cancel() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let cancels = vec![
+                ClientCancelRequest {
+                    asset: "ETH".to_string(),
+                    oid: 12345,
+                },
+                ClientCancelRequest {
+                    asset: "BTC".to_string(),
+                    oid: 67890,
+                },
+            ];
+
+            let result = builder.prepare_unsigned_bulk_cancel(cancels).await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for bulk cancel"
+                    );
+                    assert_eq!(
+                        components.eip712_domain_chain_id,
+                        Some(ethers::types::U256::from(1337))
+                    );
+                    println!("✓ prepare_unsigned_bulk_cancel succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_bulk_cancel failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping bulk cancel test");
         }
     }
 }
