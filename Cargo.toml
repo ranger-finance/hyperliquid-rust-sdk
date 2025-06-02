@@ -11,10 +11,19 @@ repository = "https://github.com/ranger-finance/hyperliquid-rust-sdk"
 keywords = ["hyperliquid", "trading", "defi", "cryptocurrency", "blockchain"]
 categories = ["api-bindings", "finance"]
 
+[[bin]]
+name = "unsigned_transaction_example"
+path = "src/bin/unsigned_transaction_example.rs"
+
+[[bin]]
+name = "signed_transaction_test"
+path = "src/bin/signed_transaction_test.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 chrono = "0.4.26"
+dotenv = "0.15.0"
 env_logger = "0.10.0"
 ethers = {version = "2.0.14", features = ["eip712", "abigen"]}
 futures-util = "0.3.28"

@@ -9,14 +9,18 @@ use std::collections::HashMap;
 
 // Add new imports for the prepare_unsigned_order method
 use super::components::UnsignedTransactionComponents;
+use crate::helpers::generate_random_key;
 use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
 use crate::{
-    Actions, BulkCancel, BulkOrder, CancelRequest, ClientCancelRequest, ClientOrderRequest,
-    SpotSend, UpdateLeverage, UsdSend, VaultTransfer, Withdraw3, BulkModify, ModifyRequest, ClientModifyRequest,
+    Actions, ApproveAgent, BulkCancel, BulkModify, BulkOrder, CancelRequest, ClientCancelRequest,
+    ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateLeverage, UsdSend,
+    VaultTransfer, Withdraw3,
 };
+use ethers::signers::{LocalWallet, Signer};
 use ethers::types::transaction::eip712::Eip712;
 use ethers::types::U256;
+use hex;
 
 #[derive(Debug)]
 pub struct UnsignedTransactionBuilder {
@@ -478,6 +482,56 @@ impl UnsignedTransactionBuilder {
             is_l1_agent_signature: true,
         })
     }
+
+    pub async fn prepare_unsigned_approve_agent(
+        &self,
+    ) -> Result<(String, UnsignedTransactionComponents)> {
+        let nonce = next_nonce();
+        let hyperliquid_chain_name = if self.http_client.is_mainnet() {
+            "Mainnet".to_string()
+        } else {
+            "Testnet".to_string()
+        };
+        let signature_chain_id = U256::from(421614);
+
+        // Generate a random private key for the agent (like in ExchangeClient::approve_agent)
+        let key = hex::encode(generate_random_key()?);
+        let agent_address = key
+            .parse::<LocalWallet>()
+            .map_err(|e| crate::Error::PrivateKeyParse(e.to_string()))?
+            .address();
+
+        let approve_agent_action = ApproveAgent {
+            signature_chain_id,
+            hyperliquid_chain: hyperliquid_chain_name.clone(),
+            agent_address,
+            agent_name: None,
+            nonce,
+        };
+
+        let action_payload_json =
+            serde_json::to_value(Actions::ApproveAgent(approve_agent_action.clone()))
+                .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        let digest_to_sign = ethers::types::H256::from(
+            approve_agent_action
+                .encode_eip712()
+                .map_err(|e| crate::Error::Eip712(e.to_string()))?,
+        );
+
+        Ok((
+            key,
+            UnsignedTransactionComponents {
+                action_payload_json,
+                nonce,
+                digest_to_sign,
+                vault_address: self.vault_address,
+                eip712_domain_chain_id: Some(signature_chain_id),
+                eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+                is_l1_agent_signature: false,
+            },
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -907,6 +961,44 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping bulk cancel test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_approve_agent() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let result = builder.prepare_unsigned_approve_agent().await;
+
+            match result {
+                Ok((key, components)) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        !components.is_l1_agent_signature,
+                        "should NOT be L1 agent signature for approve agent"
+                    );
+                    assert_eq!(components.eip712_domain_chain_id, Some(U256::from(421614)));
+                    println!("✓ prepare_unsigned_approve_agent succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                    println!("  - Key: {}", key);
+                }
+                Err(e) => {
+                    println!(
+                        "prepare_unsigned_approve_agent failed (may be expected): {:?}",
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping approve agent test");
         }
     }
 }
