@@ -178,13 +178,6 @@ Other guidelines:
    - Document API endpoints
 ---
 
-## System Architecture & Conventions
-
-- Organize code by domain: `market_data` (e.g., `streamer`), `order_processing` (e.g., `order_monitor`), `data_storage` (e.g., `datalake`).
-- Configure via environment variables with `std::env` (e.g., `LAVINMQ_URL`).
-- Optimize hot paths (e.g., `BatchPublisher::publish`) for minimal latency and maximal throughput.
-
----
 
 ## Core Dependencies & Ecosystem
 
@@ -193,6 +186,7 @@ Other guidelines:
 - **Lapin**: AMQP messaging with LavinMQ.  
 - **SQLx/Tokio-Postgres**: Async TimescaleDB operations.  
 - **Serde**: JSON/Protobuf (de)serialization.  
+- **Alloy**
 - **Actix-Web**: HTTP servers for APIs/health checks.  
 - **Prometheus**: Metrics collection.  
 - **Zstd**: Compression for data transfer.  
