@@ -68,6 +68,8 @@ pub struct SpotAssetContext {
 pub struct AssetMeta {
     pub name: String,
     pub sz_decimals: u32,
+    pub max_leverage: u32,
+    pub margin_table_id: u32,
 }
 
 #[derive(Deserialize, Debug, Clone)]
