@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 // Add new imports for the prepare_unsigned_order method
 use super::components::UnsignedTransactionComponents;
+use crate::exchange::{ApproveBuilderFee, BuilderInfo};
 use crate::helpers::generate_random_key;
 use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
@@ -17,11 +18,9 @@ use crate::{
     ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateLeverage, UsdSend,
     VaultTransfer, Withdraw3,
 };
-use crate::exchange::{BuilderInfo, ApproveBuilderFee};
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::transaction::eip712::Eip712;
 use ethers::types::U256;
-use hex;
 
 #[derive(Debug)]
 pub struct UnsignedTransactionBuilder {
@@ -566,8 +565,9 @@ impl UnsignedTransactionBuilder {
             nonce: timestamp,
         };
 
-        let action_payload_json = serde_json::to_value(Actions::ApproveBuilderFee(approve_action.clone()))
-            .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+        let action_payload_json =
+            serde_json::to_value(Actions::ApproveBuilderFee(approve_action.clone()))
+                .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
 
         let digest_to_sign = ethers::types::H256::from(
             approve_action
@@ -615,10 +615,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!(
-                    "Builder creation failed (expected in some environments): {:?}",
-                    e
-                );
+                println!("Builder creation failed (expected in some environments): {e:?}");
             }
         }
     }
@@ -643,10 +640,7 @@ mod tests {
                 println!("✓ UnsignedTransactionBuilder created successfully with vault address");
             }
             Err(e) => {
-                println!(
-                    "Builder creation failed (expected in some environments): {:?}",
-                    e
-                );
+                println!("Builder creation failed (expected in some environments): {e:?}");
             }
         }
     }
@@ -692,7 +686,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!("prepare_unsigned_order failed (may be expected): {:?}", e);
+                    println!("prepare_unsigned_order failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -739,10 +733,7 @@ mod tests {
                     );
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_usdc_transfer failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_usdc_transfer failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -780,7 +771,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!("prepare_unsigned_cancel failed (may be expected): {:?}", e);
+                    println!("prepare_unsigned_cancel failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -817,10 +808,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_withdraw failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_withdraw failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -855,10 +843,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_update_leverage failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_update_leverage failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -898,10 +883,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_spot_transfer failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_spot_transfer failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -955,10 +937,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_modify_order failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_modify_order failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -1006,10 +985,7 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_bulk_cancel failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_bulk_cancel failed (may be expected): {e:?}");
                 }
             }
         } else {
@@ -1041,13 +1017,10 @@ mod tests {
                     println!("✓ prepare_unsigned_approve_agent succeeded");
                     println!("  - Nonce: {}", components.nonce);
                     println!("  - Digest: {:?}", components.digest_to_sign);
-                    println!("  - Key: {}", key);
+                    println!("  - Key: {key}");
                 }
                 Err(e) => {
-                    println!(
-                        "prepare_unsigned_approve_agent failed (may be expected): {:?}",
-                        e
-                    );
+                    println!("prepare_unsigned_approve_agent failed (may be expected): {e:?}");
                 }
             }
         } else {

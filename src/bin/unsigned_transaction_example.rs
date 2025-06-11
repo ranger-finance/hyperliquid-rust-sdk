@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
 }
 
 fn print_unsigned_components(action_type: &str, components: &UnsignedTransactionComponents) {
-    println!("  Action Type: {}", action_type);
+    println!("  Action Type: {action_type}");
     println!("  Nonce: {}", components.nonce);
     println!("  Digest to Sign: {:?}", components.digest_to_sign);
     println!(

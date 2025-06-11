@@ -45,10 +45,10 @@ pub(crate) fn uuid_to_hex_string(uuid: Uuid) -> String {
     let hex_string = uuid
         .as_bytes()
         .iter()
-        .map(|byte| format!("{:02x}", byte))
+        .map(|byte| format!("{byte:02x}"))
         .collect::<Vec<String>>()
         .join("");
-    format!("0x{}", hex_string)
+    format!("0x{hex_string}")
 }
 
 pub(crate) fn generate_random_key() -> Result<[u8; 32]> {
