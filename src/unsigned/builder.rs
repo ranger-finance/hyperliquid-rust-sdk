@@ -17,6 +17,7 @@ use crate::{
     ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateLeverage, UsdSend,
     VaultTransfer, Withdraw3,
 };
+use crate::exchange::{BuilderInfo, ApproveBuilderFee};
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::transaction::eip712::Eip712;
 use ethers::types::U256;
@@ -72,6 +73,16 @@ impl UnsignedTransactionBuilder {
         order: ClientOrderRequest,
         grouping: Option<String>,
     ) -> Result<UnsignedTransactionComponents> {
+        self.prepare_unsigned_order_with_builder(order, grouping, None)
+            .await
+    }
+
+    pub async fn prepare_unsigned_order_with_builder(
+        &self,
+        order: ClientOrderRequest,
+        grouping: Option<String>,
+        builder: Option<BuilderInfo>,
+    ) -> Result<UnsignedTransactionComponents> {
         // Convert the ClientOrderRequest to OrderRequest using the coin_to_asset mapping
         let order_request = order.convert(&self.coin_to_asset)?;
 
@@ -79,7 +90,7 @@ impl UnsignedTransactionBuilder {
         let action = Actions::Order(BulkOrder {
             orders: vec![order_request],
             grouping: grouping.unwrap_or_else(|| "na".to_string()),
-            builder: None,
+            builder,
         });
 
         // Generate nonce
@@ -531,6 +542,48 @@ impl UnsignedTransactionBuilder {
                 is_l1_agent_signature: false,
             },
         ))
+    }
+
+    /// Prepare an unsigned approve builder fee transaction
+    pub async fn prepare_unsigned_approve_builder_fee(
+        &self,
+        builder: String,
+        max_fee_rate: String,
+    ) -> Result<UnsignedTransactionComponents> {
+        let timestamp = next_nonce();
+        let hyperliquid_chain_name = if self.http_client.is_mainnet() {
+            "Mainnet".to_string()
+        } else {
+            "Testnet".to_string()
+        };
+        let signature_chain_id = U256::from(421614);
+
+        let approve_action = ApproveBuilderFee {
+            signature_chain_id,
+            hyperliquid_chain: hyperliquid_chain_name.clone(),
+            builder,
+            max_fee_rate,
+            nonce: timestamp,
+        };
+
+        let action_payload_json = serde_json::to_value(Actions::ApproveBuilderFee(approve_action.clone()))
+            .map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        let digest_to_sign = ethers::types::H256::from(
+            approve_action
+                .encode_eip712()
+                .map_err(|e| crate::Error::Eip712(e.to_string()))?,
+        );
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json,
+            nonce: timestamp,
+            digest_to_sign,
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(signature_chain_id),
+            eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+            is_l1_agent_signature: false,
+        })
     }
 }
 

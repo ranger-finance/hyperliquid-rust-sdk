@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
         .map_err(|e| hl_ranger::Error::Wallet(e.to_string()))?;
     info!("Wallet address: {:?}", wallet.address());
 
-    let unsigned_builder = UnsignedTransactionBuilder::new(
+    let _unsigned_builder = UnsignedTransactionBuilder::new(
         None,
         Some(BaseUrl::Testnet),
         None,
