@@ -1,5 +1,6 @@
-mod components;
+pub mod bridge;
 mod builder;
+mod components;
 
-pub use components::*;
 pub use builder::*;
+pub use components::*;

@@ -19,5 +19,5 @@ pub use helpers::{bps_diff, truncate_float, BaseUrl};
 pub use info::{info_client::*, *};
 pub use market_maker::{MarketMaker, MarketMakerInput, MarketMakerRestingOrder};
 pub use meta::{AssetMeta, Meta};
-pub use unsigned::{UnsignedTransactionBuilder, UnsignedTransactionComponents};
+pub use unsigned::{bridge, UnsignedTransactionBuilder, UnsignedTransactionComponents};
 pub use ws::*;

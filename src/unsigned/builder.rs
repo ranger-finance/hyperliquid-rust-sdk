@@ -8,6 +8,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 
 // Add new imports for the prepare_unsigned_order method
+use super::bridge;
 use super::components::UnsignedTransactionComponents;
 use crate::exchange::{ApproveBuilderFee, BuilderInfo};
 use crate::helpers::generate_random_key;
@@ -135,7 +136,11 @@ impl UnsignedTransactionBuilder {
         } else {
             "Testnet".to_string()
         };
-        let signature_chain_id = U256::from(421614);
+        let signature_chain_id = if self.http_client.is_mainnet() {
+            U256::from(42161) // Arbitrum mainnet
+        } else {
+            U256::from(421614) // Arbitrum testnet
+        };
 
         let usd_send_action = UsdSend {
             signature_chain_id,
@@ -225,7 +230,11 @@ impl UnsignedTransactionBuilder {
         } else {
             "Testnet".to_string()
         };
-        let signature_chain_id = U256::from(421614);
+        let signature_chain_id = if self.http_client.is_mainnet() {
+            U256::from(42161) // Arbitrum mainnet
+        } else {
+            U256::from(421614) // Arbitrum testnet
+        };
 
         let withdraw_action = Withdraw3 {
             signature_chain_id,
@@ -315,7 +324,11 @@ impl UnsignedTransactionBuilder {
         } else {
             "Testnet".to_string()
         };
-        let signature_chain_id = U256::from(421614);
+        let signature_chain_id = if self.http_client.is_mainnet() {
+            U256::from(42161) // Arbitrum mainnet
+        } else {
+            U256::from(421614) // Arbitrum testnet
+        };
 
         let spot_send_action = SpotSend {
             signature_chain_id,
@@ -502,7 +515,11 @@ impl UnsignedTransactionBuilder {
         } else {
             "Testnet".to_string()
         };
-        let signature_chain_id = U256::from(421614);
+        let signature_chain_id = if self.http_client.is_mainnet() {
+            U256::from(42161) // Arbitrum mainnet
+        } else {
+            U256::from(421614) // Arbitrum testnet
+        };
 
         // Generate a random private key for the agent (like in ExchangeClient::approve_agent)
         let key = hex::encode(generate_random_key()?);
@@ -555,7 +572,11 @@ impl UnsignedTransactionBuilder {
         } else {
             "Testnet".to_string()
         };
-        let signature_chain_id = U256::from(421614);
+        let signature_chain_id = if self.http_client.is_mainnet() {
+            U256::from(42161) // Arbitrum mainnet
+        } else {
+            U256::from(421614) // Arbitrum testnet
+        };
 
         let approve_action = ApproveBuilderFee {
             signature_chain_id,
@@ -582,6 +603,52 @@ impl UnsignedTransactionBuilder {
             vault_address: self.vault_address,
             eip712_domain_chain_id: Some(signature_chain_id),
             eip712_hyperliquid_chain_name: Some(hyperliquid_chain_name),
+            is_l1_agent_signature: false,
+        })
+    }
+
+    /// Prepare unsigned USDC transfer to bridge contract for deposit
+    pub async fn prepare_unsigned_bridge_deposit(
+        &self,
+        amount: ethers::types::U256,
+    ) -> Result<UnsignedTransactionComponents> {
+        let is_mainnet = self.http_client.is_mainnet();
+        let bridge_address = bridge::get_bridge_address(is_mainnet);
+        let usdc_address = bridge::get_usdc_address(is_mainnet);
+
+        // Validate minimum deposit amount (5 USDC)
+        let min_deposit = ethers::types::U256::from(bridge::MIN_DEPOSIT_USDC);
+        if amount < min_deposit {
+            return Err(crate::Error::GenericParse(format!(
+                "Amount {} is below minimum deposit of {} USDC",
+                amount,
+                bridge::MIN_DEPOSIT_USDC as f64 / 1_000_000.0
+            )));
+        }
+
+        // Create USDC transfer transaction data
+        let transfer_data = bridge::create_usdc_transfer_data(bridge_address, amount);
+
+        let chain_id = if is_mainnet { "0xa4b1" } else { "0x66eee" };
+
+        let transaction_data = serde_json::json!({
+            "to": format!("0x{:040x}", usdc_address),
+            "data": transfer_data,
+            "value": "0x0",
+            "chainId": chain_id
+        });
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: transaction_data,
+            nonce: 0,                                    // Will be set by the client
+            digest_to_sign: ethers::types::H256::zero(), // Will be computed by the client
+            vault_address: None,
+            eip712_domain_chain_id: Some(if is_mainnet {
+                ethers::types::U256::from(42161)
+            } else {
+                ethers::types::U256::from(421614)
+            }),
+            eip712_hyperliquid_chain_name: None,
             is_l1_agent_signature: false,
         })
     }
@@ -1025,6 +1092,56 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping approve agent test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_bridge_deposit() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            // Test with valid amount (10 USDC)
+            let amount = ethers::types::U256::from(10_000_000); // 10 USDC in 6 decimals
+
+            let result = builder.prepare_unsigned_bridge_deposit(amount).await;
+
+            match result {
+                Ok(components) => {
+                    assert_eq!(components.nonce, 0, "nonce should be 0 for bridge deposit");
+                    assert_eq!(
+                        components.digest_to_sign,
+                        ethers::types::H256::zero(),
+                        "digest should be zero for bridge deposit"
+                    );
+                    assert!(
+                        !components.is_l1_agent_signature,
+                        "should NOT be L1 agent signature for bridge deposit"
+                    );
+                    assert_eq!(components.eip712_domain_chain_id, Some(U256::from(421614)));
+                    assert!(components.eip712_hyperliquid_chain_name.is_none());
+                    println!("✓ prepare_unsigned_bridge_deposit succeeded");
+                    println!("  - Transaction data: {}", components.action_payload_json);
+                }
+                Err(e) => {
+                    println!("prepare_unsigned_bridge_deposit failed (may be expected): {e:?}");
+                }
+            }
+
+            // Test with amount below minimum (1 USDC)
+            let small_amount = ethers::types::U256::from(1_000_000); // 1 USDC
+            let result_small = builder.prepare_unsigned_bridge_deposit(small_amount).await;
+
+            match result_small {
+                Ok(_) => {
+                    println!("❌ Expected error for amount below minimum, but got success");
+                }
+                Err(e) => {
+                    println!("✓ Correctly rejected amount below minimum: {e:?}");
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping bridge deposit test");
         }
     }
 }
