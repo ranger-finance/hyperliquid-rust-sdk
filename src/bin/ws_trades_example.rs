@@ -1,3 +1,6 @@
+fn main() {
+    println!("Hello, world!");
+}
 // use hl_ranger::info::InfoClient;
 // use hl_ranger::ws::{Message, Subscription};
 // use hl_ranger::BaseUrl;
@@ -49,4 +52,4 @@
 //     }
 
 //     Ok(())
-// } 
+// }
