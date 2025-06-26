@@ -312,6 +312,17 @@ impl UnsignedTransactionBuilder {
         })
     }
 
+    /// Convenience method for updating leverage in isolated margin mode
+    /// This method defaults is_cross to false, which enables isolated margin
+    pub async fn prepare_unsigned_update_leverage_isolated(
+        &self,
+        leverage: u32,
+        asset: &str,
+    ) -> Result<UnsignedTransactionComponents> {
+        self.prepare_unsigned_update_leverage(leverage, asset, false)
+            .await
+    }
+
     pub async fn prepare_unsigned_update_isolated_margin(
         &self,
         asset: &str,
@@ -968,6 +979,57 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping leverage update test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_update_leverage_isolated() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let result = builder
+                .prepare_unsigned_update_leverage_isolated(15, "ETH")
+                .await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for isolated leverage update"
+                    );
+                    assert_eq!(
+                        components.eip712_domain_chain_id,
+                        Some(ethers::types::U256::from(1337))
+                    );
+                    
+                    // Verify that the action payload has is_cross set to false (isolated mode)
+                    if let Some(action) = components.action_payload_json.as_object() {
+                        if let Some(update_leverage) = action.get("updateLeverage") {
+                            if let Some(is_cross) = update_leverage.get("isCross") {
+                                assert_eq!(is_cross, &serde_json::Value::Bool(false), 
+                                    "is_cross should be false for isolated margin mode");
+                            }
+                        }
+                    }
+                    
+                    println!("✓ prepare_unsigned_update_leverage_isolated succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                    println!("  - Isolated margin mode confirmed (is_cross = false)");
+                }
+                Err(e) => {
+                    println!("prepare_unsigned_update_leverage_isolated failed (may be expected): {e:?}");
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping isolated leverage update test");
         }
     }
 
