@@ -1,5 +1,5 @@
 use ethers::types::H160;
-use hyperliquid_rust_sdk::{BaseUrl, InfoClient, Message, Subscription};
+use hl_ranger::{BaseUrl, InfoClient, Message, Subscription};
 use log::info;
 use std::str::FromStr;
 use tokio::{
