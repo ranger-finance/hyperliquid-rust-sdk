@@ -32,7 +32,7 @@ async fn main() {
     };
 
     let fee = 1u64;
-    let builder = "0x1ab189B7801140900C711E458212F9c76F8dAC79";
+    let builder = "0xF5Bc9107916B91A3Ea5966cd2e51655D21B7Eb02";
 
     let response = exchange_client
         .order_with_builder(
