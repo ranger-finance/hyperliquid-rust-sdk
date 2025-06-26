@@ -245,7 +245,7 @@ impl ExchangeClient {
             sz: round_to_decimals(params.sz, sz_decimals),
             cloid: params.cloid,
             order_type: ClientOrder::Limit(ClientLimit {
-                tif: "Ioc".to_string(),
+                tif: "FrontendMarket".to_string(),
             }),
         };
 
