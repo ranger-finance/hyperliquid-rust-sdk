@@ -16,8 +16,8 @@ use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
 use crate::{
     Actions, ApproveAgent, BulkCancel, BulkModify, BulkOrder, CancelRequest, ClientCancelRequest,
-    ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateIsolatedMargin, UpdateLeverage, UsdSend,
-    VaultTransfer, Withdraw3,
+    ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateIsolatedMargin,
+    UpdateLeverage, UsdSend, VaultTransfer, Withdraw3,
 };
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::transaction::eip712::Eip712;
@@ -325,7 +325,8 @@ impl UnsignedTransactionBuilder {
             .ok_or(crate::Error::AssetNotFound)?;
 
         // Parse the margin amount and convert to micro USDC (6 decimal places)
-        let margin_amount: f64 = margin_to_add.parse()
+        let margin_amount: f64 = margin_to_add
+            .parse()
             .map_err(|_| crate::Error::FloatStringParse)?;
         let ntli = (margin_amount * 1_000_000.0).round() as i64;
 
@@ -1001,7 +1002,9 @@ mod tests {
                     println!("  - Digest: {:?}", components.digest_to_sign);
                 }
                 Err(e) => {
-                    println!("prepare_unsigned_update_isolated_margin failed (may be expected): {e:?}");
+                    println!(
+                        "prepare_unsigned_update_isolated_margin failed (may be expected): {e:?}"
+                    );
                 }
             }
         } else {
