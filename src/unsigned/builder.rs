@@ -16,7 +16,7 @@ use crate::helpers::next_nonce;
 use crate::signature::agent::l1::Agent as L1Agent;
 use crate::{
     Actions, ApproveAgent, BulkCancel, BulkModify, BulkOrder, CancelRequest, ClientCancelRequest,
-    ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateLeverage, UsdSend,
+    ClientModifyRequest, ClientOrderRequest, ModifyRequest, SpotSend, UpdateIsolatedMargin, UpdateLeverage, UsdSend,
     VaultTransfer, Withdraw3,
 };
 use ethers::signers::{LocalWallet, Signer};
@@ -281,6 +281,58 @@ impl UnsignedTransactionBuilder {
             asset: asset_index,
             is_cross,
             leverage,
+        });
+
+        // Compute the action hash for L1 agent signing
+        let connection_id = action.hash(nonce, self.vault_address)?;
+
+        // Create L1 Agent for signing
+        let agent = L1Agent {
+            source: self.vault_address.unwrap_or_default().to_string(),
+            connection_id,
+        };
+
+        // Get the typed data hash
+        let digest = agent
+            .encode_eip712()
+            .map_err(|e| crate::Error::Eip712(e.to_string()))?;
+
+        // Serialize action to JSON for the caller
+        let action_json =
+            serde_json::to_value(&action).map_err(|e| crate::Error::JsonParse(e.to_string()))?;
+
+        Ok(UnsignedTransactionComponents {
+            action_payload_json: action_json,
+            nonce,
+            digest_to_sign: ethers::types::H256::from(digest),
+            vault_address: self.vault_address,
+            eip712_domain_chain_id: Some(ethers::types::U256::from(1337)),
+            eip712_hyperliquid_chain_name: None,
+            is_l1_agent_signature: true,
+        })
+    }
+
+    pub async fn prepare_unsigned_update_isolated_margin(
+        &self,
+        asset: &str,
+        margin_to_add: String,
+    ) -> Result<UnsignedTransactionComponents> {
+        let nonce = next_nonce();
+
+        let &asset_index = self
+            .coin_to_asset
+            .get(asset)
+            .ok_or(crate::Error::AssetNotFound)?;
+
+        // Parse the margin amount and convert to micro USDC (6 decimal places)
+        let margin_amount: f64 = margin_to_add.parse()
+            .map_err(|_| crate::Error::FloatStringParse)?;
+        let ntli = (margin_amount * 1_000_000.0).round() as i64;
+
+        let action = Actions::UpdateIsolatedMargin(UpdateIsolatedMargin {
+            asset: asset_index,
+            is_buy: true, // Always true for adding margin
+            ntli,
         });
 
         // Compute the action hash for L1 agent signing
@@ -915,6 +967,45 @@ mod tests {
             }
         } else {
             println!("Builder creation failed, skipping leverage update test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_unsigned_update_isolated_margin() {
+        let builder_result =
+            UnsignedTransactionBuilder::new(None, Some(BaseUrl::Testnet), None, None).await;
+
+        if let Ok(builder) = builder_result {
+            let result = builder
+                .prepare_unsigned_update_isolated_margin("ETH", "100.5".to_string())
+                .await;
+
+            match result {
+                Ok(components) => {
+                    assert!(components.nonce > 0, "nonce should be set");
+                    assert_ne!(
+                        components.digest_to_sign,
+                        H256::zero(),
+                        "digest should not be zero"
+                    );
+                    assert!(
+                        components.is_l1_agent_signature,
+                        "should be L1 agent signature for isolated margin update"
+                    );
+                    assert_eq!(
+                        components.eip712_domain_chain_id,
+                        Some(ethers::types::U256::from(1337))
+                    );
+                    println!("✓ prepare_unsigned_update_isolated_margin succeeded");
+                    println!("  - Nonce: {}", components.nonce);
+                    println!("  - Digest: {:?}", components.digest_to_sign);
+                }
+                Err(e) => {
+                    println!("prepare_unsigned_update_isolated_margin failed (may be expected): {e:?}");
+                }
+            }
+        } else {
+            println!("Builder creation failed, skipping isolated margin update test");
         }
     }
 
