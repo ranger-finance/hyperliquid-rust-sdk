@@ -12,4 +12,4 @@ pub struct UnsignedTransactionComponents {
     pub eip712_domain_chain_id: Option<U256>, // e.g., 421614 for Arbitrum or 1337 for L1 agent
     pub eip712_hyperliquid_chain_name: Option<String>, // "Mainnet" or "Testnet" for some EIP-712 structs
     pub is_l1_agent_signature: bool, // True if digest is for l1::Agent, false for direct EIP-712 on action
-} 
+}

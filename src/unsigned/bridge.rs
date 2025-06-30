@@ -37,6 +37,6 @@ pub fn create_usdc_transfer_data(to: Address, amount: ethers::types::U256) -> St
     let selector = "a9059cbb";
     let to_padded = format!("{:064x}", to);
     let amount_padded = format!("{:064x}", amount);
-    
+
     format!("0x{}{}{}", selector, to_padded, amount_padded)
 }

@@ -6,6 +6,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone)]
 pub struct Meta {
     pub universe: Vec<AssetMeta>,
+    pub margin_tables: Vec<Vec<(u32, MarginTable)>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -70,6 +71,20 @@ pub struct AssetMeta {
     pub sz_decimals: u32,
     pub max_leverage: u32,
     pub margin_table_id: u32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MarginTable {
+    pub description: String,
+    pub margin_tiers: Vec<MarginTier>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MarginTier {
+    pub lower_bound: String,
+    pub max_leverage: u32,
 }
 
 #[derive(Deserialize, Debug, Clone)]

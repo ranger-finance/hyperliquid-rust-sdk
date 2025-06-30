@@ -1008,24 +1008,29 @@ mod tests {
                         components.eip712_domain_chain_id,
                         Some(ethers::types::U256::from(1337))
                     );
-                    
+
                     // Verify that the action payload has is_cross set to false (isolated mode)
                     if let Some(action) = components.action_payload_json.as_object() {
                         if let Some(update_leverage) = action.get("updateLeverage") {
                             if let Some(is_cross) = update_leverage.get("isCross") {
-                                assert_eq!(is_cross, &serde_json::Value::Bool(false), 
-                                    "is_cross should be false for isolated margin mode");
+                                assert_eq!(
+                                    is_cross,
+                                    &serde_json::Value::Bool(false),
+                                    "is_cross should be false for isolated margin mode"
+                                );
                             }
                         }
                     }
-                    
+
                     println!("✓ prepare_unsigned_update_leverage_isolated succeeded");
                     println!("  - Nonce: {}", components.nonce);
                     println!("  - Digest: {:?}", components.digest_to_sign);
                     println!("  - Isolated margin mode confirmed (is_cross = false)");
                 }
                 Err(e) => {
-                    println!("prepare_unsigned_update_leverage_isolated failed (may be expected): {e:?}");
+                    println!(
+                        "prepare_unsigned_update_leverage_isolated failed (may be expected): {e:?}"
+                    );
                 }
             }
         } else {
