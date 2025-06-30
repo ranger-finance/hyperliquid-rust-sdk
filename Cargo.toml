@@ -1,6 +1,6 @@
 [package]
 name = "hl_ranger"
-version = "0.6.0-ranger.15"
+version = "0.6.0-ranger.16"
 edition = "2021"
 license = "MIT"
 description = "Fork of Hyperliquid Rust SDK with unsigned transaction support for external signing"
