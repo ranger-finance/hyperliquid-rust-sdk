@@ -71,6 +71,8 @@ pub struct AssetMeta {
     pub sz_decimals: u32,
     pub max_leverage: u32,
     pub margin_table_id: u32,
+    pub only_isolated: Option<bool>,
+    pub is_delisted: Option<bool>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
