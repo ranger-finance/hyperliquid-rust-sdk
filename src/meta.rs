@@ -7,7 +7,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub universe: Vec<AssetMeta>,
-    pub margin_tables: Vec<Vec<(u32, MarginTable)>>,
+    pub margin_tables: Vec<(u32, MarginTable)>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
