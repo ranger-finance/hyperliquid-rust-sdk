@@ -4,6 +4,7 @@ use ethers::abi::ethereum_types::H128;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub universe: Vec<AssetMeta>,
     pub margin_tables: Vec<Vec<(u32, MarginTable)>>,
