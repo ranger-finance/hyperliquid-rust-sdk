@@ -101,7 +101,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -195,7 +200,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -288,7 +298,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -352,7 +367,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -442,7 +462,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -492,7 +517,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
@@ -546,7 +576,12 @@ impl UnsignedTransactionBuilder {
 
         // Create L1 Agent for signing
         let agent = L1Agent {
-            source: self.vault_address.unwrap_or_default().to_string(),
+            source: if self.http_client.is_mainnet() {
+                "a"
+            } else {
+                "b"
+            }
+            .to_string(),
             connection_id,
         };
 
