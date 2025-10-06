@@ -73,6 +73,7 @@ pub enum InfoRequest {
     },
     L2Book {
         coin: String,
+        depth: Option<u32>,
     },
     RecentTrades {
         coin: String,
@@ -259,7 +260,12 @@ impl InfoClient {
     }
 
     pub async fn l2_snapshot(&self, coin: String) -> Result<L2SnapshotResponse> {
-        let input = InfoRequest::L2Book { coin };
+        let input = InfoRequest::L2Book { coin, depth: None };
+        self.send_info_request(input).await
+    }
+
+    pub async fn l2_snapshot_with_depth(&self, coin: String, depth: u32) -> Result<L2SnapshotResponse> {
+        let input = InfoRequest::L2Book { coin, depth: Some(depth) };
         self.send_info_request(input).await
     }
 
