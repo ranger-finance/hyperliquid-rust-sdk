@@ -73,6 +73,7 @@ pub enum InfoRequest {
     },
     L2Book {
         coin: String,
+        n_sig_figs: Option<u32>,
     },
     RecentTrades {
         coin: String,
@@ -259,7 +260,18 @@ impl InfoClient {
     }
 
     pub async fn l2_snapshot(&self, coin: String) -> Result<L2SnapshotResponse> {
-        let input = InfoRequest::L2Book { coin };
+        let input = InfoRequest::L2Book { 
+            coin, 
+            n_sig_figs: None 
+        };
+        self.send_info_request(input).await
+    }
+
+    pub async fn l2_snapshot_with_sig_figs(&self, coin: String, n_sig_figs: u32) -> Result<L2SnapshotResponse> {
+        let input = InfoRequest::L2Book { 
+            coin, 
+            n_sig_figs: Some(n_sig_figs) 
+        };
         self.send_info_request(input).await
     }
 
