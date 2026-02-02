@@ -12,6 +12,7 @@ use crate::{
 };
 
 use ethers::types::H160;
+use futures_util::future::try_join_all;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -52,10 +53,16 @@ pub enum InfoRequest {
         user: H160,
         oid: u64,
     },
-    Meta,
+    Meta {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dex: Option<String>,
+    },
     SpotMeta,
     SpotMetaAndAssetCtxs,
-    AllMids,
+    AllMids {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dex: Option<String>,
+    },
     UserFills {
         user: H160,
     },
@@ -88,6 +95,18 @@ pub enum InfoRequest {
     HistoricalOrders {
         user: H160,
     },
+    PerpDexs,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PerpDex {
+    pub name: String,
+    pub id: u32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct RawPerpDex {
+    pub name: String,
 }
 
 #[derive(Debug)]
@@ -201,9 +220,28 @@ impl InfoClient {
         self.send_info_request(input).await
     }
 
-    pub async fn meta(&self) -> Result<Meta> {
-        let input = InfoRequest::Meta;
+    pub async fn dex_meta(&self, dex: Option<String>) -> Result<Meta> {
+        let input = InfoRequest::Meta { dex };
         self.send_info_request(input).await
+    }
+
+    pub async fn meta(&self) -> Result<Meta> {
+        let dexs = self.perp_dexs().await?;
+        let mut futures = Vec::new();
+        futures.push(self.dex_meta(None));
+        for dex in dexs {
+            futures.push(self.dex_meta(Some(dex.name.clone())));
+        }
+        let results = try_join_all(futures).await?;
+        let mut global_meta = Meta {
+            universe: Vec::new(),
+            margin_tables: Vec::new(),
+        };
+        for meta in results {
+            global_meta.universe.extend(meta.universe);
+            global_meta.margin_tables.extend(meta.margin_tables);
+        }
+        Ok(global_meta)
     }
 
     pub async fn spot_meta(&self) -> Result<SpotMeta> {
@@ -216,9 +254,24 @@ impl InfoClient {
         self.send_info_request(input).await
     }
 
-    pub async fn all_mids(&self) -> Result<HashMap<String, String>> {
-        let input = InfoRequest::AllMids;
+    pub async fn dex_all_mids(&self, dex: Option<String>) -> Result<HashMap<String, String>> {
+        let input = InfoRequest::AllMids { dex };
         self.send_info_request(input).await
+    }
+
+    pub async fn all_mids(&self) -> Result<HashMap<String, String>> {
+        let dexs = self.perp_dexs().await?;
+        let mut futures = Vec::new();
+        futures.push(self.dex_all_mids(None));
+        for dex in dexs {
+            futures.push(self.dex_all_mids(Some(dex.name.clone())));
+        }
+        let results = try_join_all(futures).await?;
+        let mut global_mids = HashMap::new();
+        for result in results {
+            global_mids.extend(result);
+        }
+        Ok(global_mids)
     }
 
     pub async fn user_fills(&self, address: H160) -> Result<Vec<UserFillsResponse>> {
@@ -260,17 +313,21 @@ impl InfoClient {
     }
 
     pub async fn l2_snapshot(&self, coin: String) -> Result<L2SnapshotResponse> {
-        let input = InfoRequest::L2Book { 
-            coin, 
-            n_sig_figs: None 
+        let input = InfoRequest::L2Book {
+            coin,
+            n_sig_figs: None,
         };
         self.send_info_request(input).await
     }
 
-    pub async fn l2_snapshot_with_sig_figs(&self, coin: String, n_sig_figs: u32) -> Result<L2SnapshotResponse> {
-        let input = InfoRequest::L2Book { 
-            coin, 
-            n_sig_figs: Some(n_sig_figs) 
+    pub async fn l2_snapshot_with_sig_figs(
+        &self,
+        coin: String,
+        n_sig_figs: u32,
+    ) -> Result<L2SnapshotResponse> {
+        let input = InfoRequest::L2Book {
+            coin,
+            n_sig_figs: Some(n_sig_figs),
         };
         self.send_info_request(input).await
     }
@@ -306,5 +363,21 @@ impl InfoClient {
     pub async fn historical_orders(&self, address: H160) -> Result<Vec<OrderInfo>> {
         let input = InfoRequest::HistoricalOrders { user: address };
         self.send_info_request(input).await
+    }
+
+    pub async fn perp_dexs(&self) -> Result<Vec<PerpDex>> {
+        let input = InfoRequest::PerpDexs;
+        let raw_dexs: Vec<Option<RawPerpDex>> = self.send_info_request(input).await?;
+
+        let mut result = Vec::new();
+        for (i, dex_opt) in raw_dexs.into_iter().enumerate() {
+            if let Some(dex) = dex_opt {
+                result.push(PerpDex {
+                    name: dex.name,
+                    id: i as u32,
+                });
+            }
+        }
+        Ok(result)
     }
 }
