@@ -99,6 +99,12 @@ pub enum InfoRequest {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+pub struct PerpMeta {
+    pub dex: Option<PerpDex>,
+    pub meta: Meta,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct PerpDex {
     pub name: String,
     pub id: u32,
@@ -226,20 +232,27 @@ impl InfoClient {
     }
 
     pub async fn meta(&self) -> Result<Meta> {
+        self.dex_meta(None).await
+    }
+
+    pub async fn global_meta(&self) -> Result<Vec<PerpMeta>> {
         let dexs = self.perp_dexs().await?;
         let mut futures = Vec::new();
         futures.push(self.dex_meta(None));
-        for dex in dexs {
+        for dex in dexs.clone() {
             futures.push(self.dex_meta(Some(dex.name.clone())));
         }
         let results = try_join_all(futures).await?;
-        let mut global_meta = Meta {
-            universe: Vec::new(),
-            margin_tables: Vec::new(),
-        };
-        for meta in results {
-            global_meta.universe.extend(meta.universe);
-            global_meta.margin_tables.extend(meta.margin_tables);
+        let mut global_meta = Vec::new();
+        for (i, meta) in results.into_iter().enumerate() {
+            if i == 0 {
+                global_meta.push(PerpMeta { dex: None, meta });
+            } else {
+                global_meta.push(PerpMeta {
+                    dex: Some(dexs[i].clone()),
+                    meta,
+                });
+            }
         }
         Ok(global_meta)
     }
@@ -260,6 +273,10 @@ impl InfoClient {
     }
 
     pub async fn all_mids(&self) -> Result<HashMap<String, String>> {
+        self.dex_all_mids(None).await
+    }
+
+    pub async fn global_all_mids(&self) -> Result<HashMap<String, String>> {
         let dexs = self.perp_dexs().await?;
         let mut futures = Vec::new();
         futures.push(self.dex_all_mids(None));
