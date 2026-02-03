@@ -249,7 +249,7 @@ impl InfoClient {
                 global_meta.push(PerpMeta { dex: None, meta });
             } else {
                 global_meta.push(PerpMeta {
-                    dex: Some(dexs[i].clone()),
+                    dex: Some(dexs[i - 1].clone()),
                     meta,
                 });
             }
