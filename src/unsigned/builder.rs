@@ -1,8 +1,8 @@
-use crate::meta::Meta;
 use crate::prelude::Result;
 use crate::req::HttpClient;
 use crate::BaseUrl;
 use crate::InfoClient;
+use crate::PerpMeta;
 use ethers::types::H160;
 use reqwest::Client;
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ use ethers::types::U256;
 #[derive(Debug)]
 pub struct UnsignedTransactionBuilder {
     pub http_client: HttpClient,
-    pub meta: Meta,
+    pub meta: Vec<PerpMeta>,
     pub vault_address: Option<H160>,
     pub coin_to_asset: HashMap<String, u32>,
 }
@@ -35,7 +35,7 @@ impl UnsignedTransactionBuilder {
     pub async fn new(
         client: Option<Client>,
         base_url_override: Option<BaseUrl>,
-        meta_override: Option<Meta>,
+        meta_override: Option<Vec<PerpMeta>>,
         vault_address: Option<H160>,
     ) -> Result<Self> {
         let client = client.unwrap_or_default();
@@ -45,12 +45,19 @@ impl UnsignedTransactionBuilder {
         let meta = if let Some(m) = meta_override {
             m
         } else {
-            info_for_setup.meta().await?
+            info_for_setup.global_meta().await?
         };
 
         let mut coin_to_asset = HashMap::new();
-        for (asset_ind, asset_meta) in meta.universe.iter().enumerate() {
-            coin_to_asset.insert(asset_meta.name.clone(), asset_ind as u32);
+        for perp_meta in meta.iter() {
+            let hl_market_id_additive = if let Some(dex) = &perp_meta.dex {
+                100000 + dex.id * 10000
+            } else {
+                0
+            };
+            for (i, asset_meta) in perp_meta.meta.universe.iter().enumerate() {
+                coin_to_asset.insert(asset_meta.name.clone(), hl_market_id_additive + i as u32);
+            }
         }
         coin_to_asset = info_for_setup
             .spot_meta()
