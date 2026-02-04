@@ -8,6 +8,7 @@ use serde::Deserialize;
 pub struct Meta {
     pub universe: Vec<AssetMeta>,
     pub margin_tables: Vec<(u32, MarginTable)>,
+    pub collateral_token: u32,
 }
 
 #[derive(Deserialize, Debug, Clone)]
